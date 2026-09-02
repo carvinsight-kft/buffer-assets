@@ -12,21 +12,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Decode b64 to img/*.jpg
+      - name: Decode b64 parts to img/*.jpg
         run: |
           python3 - <<'PY'
           import base64, pathlib
+          from collections import defaultdict
           src = pathlib.Path('b64')
           dst = pathlib.Path('img')
           dst.mkdir(exist_ok=True)
-          if not src.exists():
-              raise SystemExit('no b64 dir')
-          for p in sorted(src.glob('*.b64')):
-              name = p.name[:-4]  # strip .b64
-              out = dst / name
-              data = base64.b64decode(p.read_text())
+          groups = defaultdict(list)
+          for p in sorted(src.iterdir()):
+              if not p.is_file():
+                  continue
+              name = p.name
+              if '.p' in name and name.rsplit('.p',1)[-1].isdigit():
+                  stem = name.rsplit('.p',1)[0]
+                  groups[stem].append(p)
+              elif name.endswith('.b64'):
+                  groups[name[:-4]].append(p)
+          for stem, parts in groups.items():
+              blob = ''.join(x.read_text().strip() for x in parts)
+              data = base64.b64decode(blob)
+              out = dst / stem
               out.write_bytes(data)
-              print(name, len(data))
+              print(stem, len(parts), 'parts', len(data), 'bytes')
           PY
       - name: Commit images
         run: |
