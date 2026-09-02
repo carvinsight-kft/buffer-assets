@@ -1,0 +1,41 @@
+name: decode-buffer-jpegs
+on:
+  push:
+    paths:
+      - "b64/**"
+      - ".github/workflows/decode-buffer-jpegs.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode b64 to img/*.jpg
+        run: |
+          python3 - <<'PY'
+          import base64, pathlib
+          src = pathlib.Path('b64')
+          dst = pathlib.Path('img')
+          dst.mkdir(exist_ok=True)
+          if not src.exists():
+              raise SystemExit('no b64 dir')
+          for p in sorted(src.glob('*.b64')):
+              name = p.name[:-4]  # strip .b64
+              out = dst / name
+              data = base64.b64decode(p.read_text())
+              out.write_bytes(data)
+              print(name, len(data))
+          PY
+      - name: Commit images
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add img
+          if git diff --cached --quiet; then
+            echo "no image changes"
+          else
+            git commit -m "Add Buffer-ready JPEGs decoded from b64"
+            git push
+          fi
